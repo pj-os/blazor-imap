@@ -85,4 +85,76 @@ Email passwords are encrypted using AES encryption. The encryption key is stored
 - Development-specific settings are in `appsettings.Development.json`
 - This file is excluded from Git for security
 
-Thank you! Happy coding.
+## Project Structure
+
+```
+BlazorEmailApp/
+├── Components/
+│   ├── Layout/           # Navigation and layout components
+│   └── Pages/            # Main application pages
+│       ├── EmailConfig.razor    # Email account management
+│       ├── Emails.razor         # Email list and filtering
+│       └── EmailDetail.razor    # Individual email view
+├── Data/
+│   └── AppDbContext.cs   # Entity Framework context
+├── Models/
+│   ├── Email.cs          # Email entity model
+│   └── EmailAccount.cs   # Email account model
+├── Services/
+│   ├── EmailService.cs   # Email sync and management
+│   └── EncryptionService.cs # Password encryption
+└── wwwroot/              # Static files and CSS
+```
+
+## Security Features
+
+- **Password Encryption**: All email passwords are encrypted using AES
+- **Local Storage**: All data is stored locally on your machine
+- **No Cloud Storage**: Your emails never leave your local machine
+- **Secure IMAP**: Uses SSL/TLS for all IMAP connections
+
+## Troubleshooting
+
+### Common Issues
+
+**"Connection test failed"**
+- Check your IMAP server settings
+- Verify your email and password
+- Ensure SSL is enabled if required
+- For Gmail, enable "Less secure app access" or use App Password
+
+**"No emails found"**
+- Make sure you've synced emails first
+- Check that your IMAP account has emails
+- Try a "Full Sync" instead of "Sync New"
+
+**"Form validation failed"**
+- Ensure all required fields are filled
+- Check that the port number is valid (1-65535)
+
+### Development Issues
+
+**Build errors**
+```bash
+dotnet restore
+dotnet build
+```
+
+**Database issues**
+```bash
+# Remove the database to start fresh
+rm BlazorEmailApp.db
+dotnet run
+```
+
+## Acknowledgments
+
+- **MailKit** - Excellent IMAP library for .NET
+- **Blazor** - Amazing web framework for C#
+- **Tailwind CSS** - Utility-first CSS framework
+- **Entity Framework Core** - Powerful ORM for .NET
+
+
+---
+
+**Happy Email Reading!**
