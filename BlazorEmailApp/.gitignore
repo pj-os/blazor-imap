@@ -1,0 +1,70 @@
+# .NET build artifacts
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+BlazorEmailApp.db
+BlazorEmailApp.db-shm
+BlazorEmailApp.db-wal
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vs/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# User-specific files
+appsettings.Development.json
+appsettings.Production.json
+
+# NuGet packages
+*.nupkg
+packages/
+
+# Test Results
+TestResults/
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# Coverage reports
+*.coverage
+*.coveragexml
+
+# Performance and profiling
+*.diag
+*.diaglog
+*.diagpkg 

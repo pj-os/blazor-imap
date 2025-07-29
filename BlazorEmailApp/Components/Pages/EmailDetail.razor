@@ -1,0 +1,144 @@
+@page "/email/{Id:int}"
+@rendermode InteractiveServer
+@using BlazorEmailApp.Models
+@using BlazorEmailApp.Services
+@inject EmailService EmailService
+@inject NavigationManager Navigation
+@inject ILogger<EmailDetail> Logger
+
+<PageTitle>Email - @(email?.Subject ?? "Loading...")</PageTitle>
+
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="mb-6">
+            <button @onclick="GoBack" class="flex items-center text-blue-600 hover:text-blue-800">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+                Back to Emails
+            </button>
+        </div>
+        
+        @if (email == null)
+        {
+            <div class="text-center py-12">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                <p class="mt-4 text-gray-600">Loading email...</p>
+            </div>
+        }
+        else
+        {
+            <div class="bg-white rounded-lg shadow-md">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex-1">
+                            <h1 class="text-2xl font-bold text-gray-900 mb-2">@(string.IsNullOrEmpty(email.Subject) ? "(No Subject)" : email.Subject)</h1>
+                            <div class="flex items-center gap-4 text-sm text-gray-600">
+                                <span><strong>From:</strong> @(string.IsNullOrEmpty(email.From) ? "Unknown" : email.From)</span>
+                                @if (!string.IsNullOrEmpty(email.To))
+                                {
+                                    <span><strong>To:</strong> @email.To</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            @if (!email.IsRead)
+                            {
+                                <button @onclick="MarkAsRead" class="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200">
+                                    Mark as Read
+                                </button>
+                            }
+                            @if (email.HasAttachments)
+                            {
+                                <span class="inline-flex items-center px-2 py-1 rounded text-sm bg-gray-100 text-gray-700">
+                                    📎 Has Attachments
+                                </span>
+                            }
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-500">
+                        <span>Received: @email.ReceivedDate.ToString("f")</span>
+                    </div>
+                </div>
+                
+                <div class="p-6">
+                    @if (string.IsNullOrEmpty(email.Content))
+                    {
+                        <p class="text-gray-500 italic">No content available</p>
+                    }
+                    else
+                    {
+                        <div class="prose max-w-none">
+                            <pre class="whitespace-pre-wrap text-sm text-gray-900 font-sans">@email.Content</pre>
+                        </div>
+                    }
+                </div>
+                
+                @if (!string.IsNullOrEmpty(email.Snippet) && email.Snippet != email.Content)
+                {
+                    <div class="p-6 border-t border-gray-200 bg-gray-50">
+                        <h3 class="text-sm font-medium text-gray-700 mb-2">Preview</h3>
+                        <p class="text-sm text-gray-600">@email.Snippet</p>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+    
+    private Email? email;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmail();
+    }
+    
+    private async Task LoadEmail()
+    {
+        try
+        {
+            email = await EmailService.GetEmailAsync(Id);
+            if (email == null)
+            {
+                // Email not found, redirect to emails list
+                Navigation.NavigateTo("/emails");
+            }
+            else if (!email.IsRead)
+            {
+                // Automatically mark as read when viewed
+                await EmailService.MarkEmailAsReadAsync(Id);
+                email.IsRead = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load email {EmailId}", Id);
+        }
+    }
+    
+    private async Task MarkAsRead()
+    {
+        if (email != null && !email.IsRead)
+        {
+            try
+            {
+                await EmailService.MarkEmailAsReadAsync(Id);
+                email.IsRead = true;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to mark email as read");
+            }
+        }
+    }
+    
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/emails");
+    }
+} 

@@ -1,0 +1,454 @@
+@page "/email-config"
+@rendermode InteractiveServer
+@using BlazorEmailApp.Models
+@using BlazorEmailApp.Services
+@using System.Threading
+@using System
+@inject EmailService EmailService
+@inject NavigationManager Navigation
+@inject ILogger<EmailConfig> Logger
+
+<PageTitle>Email Configuration</PageTitle>
+
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">Email Configuration</h1>
+        
+        @if (showAddForm)
+        {
+            <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4">@(editingAccount == null ? "Add New Email Account" : "Edit Email Account")</h2>
+                
+                <EditForm Model="@newAccount" OnValidSubmit="HandleSubmit">
+                    <!-- Temporarily removed DataAnnotationsValidator for debugging -->
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
+                            <InputText @bind-Value="newAccount.Name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <ValidationMessage For="@(() => newAccount.Name)" />
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                            <InputText @bind-Value="newAccount.Email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <ValidationMessage For="@(() => newAccount.Email)" />
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">IMAP Server</label>
+                            <InputText @bind-Value="newAccount.ImapServer" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <ValidationMessage For="@(() => newAccount.ImapServer)" />
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Port</label>
+                            <InputNumber @bind-Value="newAccount.ImapPort" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <ValidationMessage For="@(() => newAccount.ImapPort)" />
+                        </div>
+                        
+                        <div class="flex items-center">
+                            <InputCheckbox @bind-Value="newAccount.UseSsl" id="useSsl" class="mr-2" />
+                            <label for="useSsl" class="text-sm font-medium text-gray-700">Use SSL</label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <InputText @bind-Value="password" type="password" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        @if (editingAccount != null)
+                        {
+                            <p class="text-sm text-gray-500 mt-1">Leave blank to keep current password</p>
+                        }
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            @(editingAccount == null ? "Add Account" : "Update Account")
+                        </button>
+                        <button type="button" @onclick="CancelEdit" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500">
+                            Cancel
+                        </button>
+                        @if (editingAccount != null)
+                        {
+                            <button type="button" @onclick="TestConnection" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                                Test Connection
+                            </button>
+                        }
+                    </div>
+                </EditForm>
+            </div>
+        }
+        
+        <div class="bg-white rounded-lg shadow-md">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-semibold">Email Accounts</h2>
+                    <button @onclick="ShowAddForm" class="btn btn-primary">
+                        Add Account
+                    </button>
+                </div>
+            </div>
+            
+            @if (accounts == null)
+            {
+                <div class="p-6 text-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                </div>
+            }
+            else if (!accounts.Any())
+            {
+                <div class="p-6 text-center text-gray-500">
+                    <p>No email accounts configured yet.</p>
+                    <p class="mt-2">Click "Add Account" to get started.</p>
+                </div>
+            }
+            else
+            {
+                <div class="divide-y divide-gray-200">
+                    @foreach (var account in accounts)
+                    {
+                        <div class="p-6">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <h3 class="text-lg font-medium text-gray-900">@account.Name</h3>
+                                    <p class="text-sm text-gray-600">@account.Email</p>
+                                    <p class="text-sm text-gray-500">@account.ImapServer:@account.ImapPort @(account.UseSsl ? "(SSL)" : "")</p>
+                                    @if (account.LastSync.HasValue)
+                                    {
+                                        <p class="text-sm text-gray-500">Last sync: @account.LastSync.Value.ToString("g")</p>
+                                    }
+                                </div>
+                                <div class="flex gap-2">
+                                    <button @onclick="() => EditAccount(account)" disabled="@isSyncing" class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                        Edit
+                                    </button>
+                                    <button @onclick="() => SyncEmails(account.Id, false)" disabled="@isSyncing" class="px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                        @if (isSyncing)
+                                        {
+                                            <span>Syncing...</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Sync New</span>
+                                        }
+                                    </button>
+                                    <button @onclick="() => SyncEmails(account.Id, true)" disabled="@isSyncing" class="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                        @if (isSyncing)
+                                        {
+                                            <span>Syncing...</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Full Sync</span>
+                                        }
+                                    </button>
+                                    <button @onclick="() => DeleteAccount(account.Id)" disabled="@isSyncing" class="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+        
+        @if (isSyncing)
+        {
+            <div class="bg-white rounded-lg shadow-md p-6 mt-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">Sync Progress</h3>
+                    <span class="text-sm text-gray-600">@syncProgressPercent%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+                    <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: @(syncProgressPercent)%"></div>
+                </div>
+                <p class="text-sm text-gray-600">@syncProgress</p>
+                @if (syncTotal > 0)
+                {
+                    <p class="text-sm text-gray-500 mt-1">@syncCurrent / @syncTotal emails processed</p>
+                }
+            </div>
+        }
+        
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <div class="fixed bottom-4 right-4 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg">
+                @message
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<EmailAccount>? accounts;
+    private EmailAccount newAccount = new();
+    private EmailAccount? editingAccount;
+    private string password = "";
+    private bool showAddForm = false;
+    private string message = "";
+    private bool isSyncing = false;
+    private string syncProgress = "";
+    private int syncProgressPercent = 0;
+    private int syncCurrent = 0;
+    private int syncTotal = 0;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAccounts();
+    }
+    
+    private async Task LoadAccounts()
+    {
+        try
+        {
+            accounts = await EmailService.GetEmailAccountsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load email accounts");
+            ShowMessage("Failed to load email accounts");
+        }
+    }
+    
+    private void ShowAddForm()
+    {
+        showAddForm = true;
+        editingAccount = null;
+        newAccount = new EmailAccount
+        {
+            ImapPort = 993, // Default IMAP SSL port
+            UseSsl = true
+        };
+        password = "";
+    }
+    
+    private void EditAccount(EmailAccount account)
+    {
+        showAddForm = true;
+        editingAccount = account;
+        newAccount = new EmailAccount
+        {
+            Id = account.Id,
+            Name = account.Name,
+            Email = account.Email,
+            ImapServer = account.ImapServer,
+            ImapPort = account.ImapPort,
+            UseSsl = account.UseSsl
+        };
+        password = "";
+    }
+    
+    private void CancelEdit()
+    {
+        showAddForm = false;
+        editingAccount = null;
+        newAccount = new EmailAccount();
+        password = "";
+    }
+    
+    private async Task HandleSubmit()
+    {
+        Console.WriteLine("HandleSubmit called"); // Debug
+        ShowMessage("Form submitted - processing..."); // Debug
+        
+        try
+        {
+            if (editingAccount == null)
+            {
+                if (string.IsNullOrEmpty(password))
+                {
+                    ShowMessage("Password is required");
+                    return;
+                }
+                
+                // Validate required fields manually
+                if (string.IsNullOrWhiteSpace(newAccount.Name))
+                {
+                    ShowMessage("Account name is required");
+                    return;
+                }
+                
+                if (string.IsNullOrWhiteSpace(newAccount.Email))
+                {
+                    ShowMessage("Email address is required");
+                    return;
+                }
+                
+                if (string.IsNullOrWhiteSpace(newAccount.ImapServer))
+                {
+                    ShowMessage("IMAP server is required");
+                    return;
+                }
+                
+                if (newAccount.ImapPort <= 0)
+                {
+                    ShowMessage("Port must be greater than 0");
+                    return;
+                }
+                
+                Console.WriteLine($"Creating account: {newAccount.Name}, {newAccount.Email}"); // Debug
+                await EmailService.CreateEmailAccountAsync(newAccount, password);
+                ShowMessage("Email account added successfully");
+            }
+            else
+            {
+                var success = await EmailService.UpdateEmailAccountAsync(newAccount, 
+                    string.IsNullOrEmpty(password) ? null : password);
+                if (success)
+                {
+                    ShowMessage("Email account updated successfully");
+                }
+                else
+                {
+                    ShowMessage("Failed to update email account");
+                    return;
+                }
+            }
+            
+            await LoadAccounts();
+            CancelEdit();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save email account");
+            ShowMessage("Failed to save email account");
+        }
+    }
+    
+    private async Task TestConnection()
+    {
+        if (editingAccount == null || string.IsNullOrEmpty(password))
+        {
+            ShowMessage("Please enter a password to test the connection");
+            return;
+        }
+        
+        try
+        {
+            var success = await EmailService.TestConnectionAsync(newAccount, password);
+            if (success)
+            {
+                ShowMessage("Connection test successful!");
+            }
+            else
+            {
+                ShowMessage("Connection test failed. Please check your settings.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Connection test failed");
+            ShowMessage("Connection test failed");
+        }
+    }
+    
+    private async Task SyncEmails(int accountId, bool fullSync = false)
+    {
+        if (isSyncing) return;
+        
+        isSyncing = true;
+        syncProgress = "Initializing sync...";
+        syncProgressPercent = 0;
+        syncCurrent = 0;
+        syncTotal = 0;
+        StateHasChanged();
+        
+        try
+        {
+            var syncType = fullSync ? "full" : "incremental";
+            syncProgress = $"Starting {syncType} sync...";
+            syncProgressPercent = 5;
+            StateHasChanged();
+            
+            var progress = new Progress<(int current, int total, string status)>(update =>
+            {
+                syncCurrent = update.current;
+                syncTotal = update.total;
+                syncProgress = update.status;
+                
+                if (update.total > 0)
+                {
+                    syncProgressPercent = Math.Min(95, (int)((double)update.current / update.total * 100));
+                }
+                
+                InvokeAsync(StateHasChanged);
+            });
+            
+            var count = await EmailService.SyncEmailsAsync(accountId, fullSync, progress);
+            
+            syncProgressPercent = 100;
+            syncProgress = $"Sync completed! Synced {count} new emails.";
+            StateHasChanged();
+            
+            await Task.Delay(1000); // Show completion for 1 second
+            
+            ShowMessage($"Synced {count} new emails ({syncType} sync)");
+            await LoadAccounts();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to sync emails");
+            ShowMessage("Failed to sync emails");
+        }
+        finally
+        {
+            isSyncing = false;
+            syncProgress = "";
+            syncProgressPercent = 0;
+            syncCurrent = 0;
+            syncTotal = 0;
+            StateHasChanged();
+        }
+    }
+    
+    private async Task DeleteAccount(int accountId)
+    {
+        try
+        {
+            var success = await EmailService.DeleteEmailAccountAsync(accountId);
+            if (success)
+            {
+                ShowMessage("Email account deleted successfully");
+                await LoadAccounts();
+            }
+            else
+            {
+                ShowMessage("Failed to delete email account");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to delete email account");
+            ShowMessage("Failed to delete email account");
+        }
+    }
+    
+    private void HandleInvalidSubmit()
+    {
+        Console.WriteLine("Form validation failed"); // Debug
+        Console.WriteLine($"Name: '{newAccount.Name}'");
+        Console.WriteLine($"Email: '{newAccount.Email}'");
+        Console.WriteLine($"ImapServer: '{newAccount.ImapServer}'");
+        Console.WriteLine($"ImapPort: {newAccount.ImapPort}");
+        Console.WriteLine($"Password: '{password}'");
+        
+        ShowMessage("Form validation failed - please check all required fields");
+    }
+    
+    private void ShowMessage(string msg)
+    {
+        message = msg;
+        StateHasChanged();
+        
+        // Auto-hide message after 3 seconds
+        _ = Task.Delay(3000).ContinueWith(_ =>
+        {
+            message = "";
+            StateHasChanged();
+        });
+    }
+} 
